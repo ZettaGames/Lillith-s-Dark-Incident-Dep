@@ -54,6 +54,14 @@ public class DarkyBehaviour : BossGeneric
     [SerializeField] private GameObject _lightBackground;
     [SerializeField] private GameObject _darkBackground;
 
+    [SerializeField] private Shader _backgroundBlendShader;
+    private Material[] _phaseBackgroundMaterials;
+    private Sprite[] _phaseBackgroundSprites;
+    private const float PhaseFadeDuration = 1.5f;
+    // Center the background blend on the end of DarkyFakeDeath.anim (5.25 seconds).
+    private const float TransformationDuration = 5.25f;
+    private static readonly int PhaseBlend = Shader.PropertyToID("_PhaseBlend");
+
     private Vector3 _left = new Vector3(-3f, 3f, 0f);
     private Vector3 _right = new Vector3(3f, 3f, 0f);
     private Vector3 _center = new Vector3(0f, 0f, 0f);
@@ -79,6 +87,7 @@ public class DarkyBehaviour : BossGeneric
         _audioSource = _musicPlayer.GetComponent<AudioSource>();
 
         _currentHealth = _maxHealth;
+        PreparePhaseBackgrounds();
 
         StartCoroutine(ChangePhrase());
         StartCoroutine(Wander());
@@ -88,6 +97,7 @@ public class DarkyBehaviour : BossGeneric
 
     private void Update()
     {
+        if (LocalTime.IsPaused || _isPhaseThree) return;
         // Change the thunder and cloud walls to use
         _thunderToUse = _isPhaseTwo ? _darkThunder : _lightThunder;
         _leftToUse = _isPhaseTwo ? _darkLeft : _lightLeft;
@@ -428,10 +438,28 @@ public class DarkyBehaviour : BossGeneric
             // Make the boss invulnerable
             GetComponent<Collider2D>().enabled = false;
 
-            Debug.Log("MUERTE VERDADERA");
+            // Commit the final phase before any coroutine can yield or restart an attack.
+            _isPhaseThree = true;
+            _canWander = false;
+            _isThunder = _isCloud = _isHell = true;
             StopAllCoroutines();
+            ClearPhaseWalls();
             _stateText.text = "S U R V I V E";
             StartCoroutine(FinalHell());
+        }
+    }
+
+    private void ClearPhaseWalls()
+    {
+        // CloudWall may have been cancelled before its collider cleanup, even at zero alpha.
+        // Include both phases and inactive descendants; opacity never determines collision state.
+        var walls = new[] { _lightLeft, _lightRight, _darkLeft, _darkRight };
+        foreach (var wall in walls)
+        {
+            if (wall == null) continue;
+            foreach (var collider in wall.GetComponentsInChildren<Collider2D>(true))
+                collider.enabled = false;
+            wall.SetActive(false);
         }
     }
 
@@ -503,6 +531,9 @@ public class DarkyBehaviour : BossGeneric
 
     private IEnumerator FakeDeath()
     {
+        _canWander = false;
+        _isThunder = _isCloud = _isHell = true;
+
         // Smootly decrease the music volume
         while (_audioSource.volume > 0)
         {
@@ -530,16 +561,12 @@ public class DarkyBehaviour : BossGeneric
         StartCoroutine(FadeOutWalls());
 
         // Move the boss to the center
-        MoveToDestination(_center, 1.25f);
-        yield return WaitForPausedSeconds(1.25f);
+        yield return MoveForPhaseTransition(_center, 1.25f);
 
         // Start the animation
         _animator.SetTrigger(FAKE);
-        yield return WaitForPausedSeconds(2.25f);
-
-        // Deactivate the light background and activate the dark background
-        _lightBackground.SetActive(false);
-        _darkBackground.SetActive(true);
+        yield return WaitForPausedSeconds(TransformationDuration - PhaseFadeDuration * 0.5f);
+        yield return BlendPhaseVisuals();
 
         // Change the music 
         _audioSource.clip = _music;
@@ -565,8 +592,7 @@ public class DarkyBehaviour : BossGeneric
         yield return WaitForPausedSeconds(1.5f);
 
         // Move the boss to the start position
-        MoveToDestination(new Vector3(0f, 3f, 0f), 1.25f);
-        yield return WaitForPausedSeconds(1.25f);
+        yield return MoveForPhaseTransition(new Vector3(0f, 3f, 0f), 1.25f);
 
         // Make the boss vulnerable
         GetComponent<Collider2D>().enabled = true;
@@ -578,6 +604,91 @@ public class DarkyBehaviour : BossGeneric
         _isThunder = false;
         _isCloud = false;
         _isHell = false;
+    }
+
+    private void PreparePhaseBackgrounds()
+    {
+        if (_backgroundBlendShader == null) return;
+        var light = _lightBackground.GetComponentsInChildren<SpriteRenderer>(true);
+        var dark = _darkBackground.GetComponentsInChildren<SpriteRenderer>(true);
+        _phaseBackgroundMaterials = new Material[light.Length];
+        _phaseBackgroundSprites = new Sprite[light.Length];
+        for (int i = 0; i < light.Length; i++)
+        {
+            foreach (var target in dark)
+            {
+                if (target.sortingOrder != light[i].sortingOrder || target.sprite == null) continue;
+                // Full rectangles prevent the light texture's tight mesh clipping the dark clouds.
+                var originalSprite = light[i].sprite;
+                var pivot = new Vector2(originalSprite.pivot.x / originalSprite.rect.width,
+                    originalSprite.pivot.y / originalSprite.rect.height);
+                var fullRect = Sprite.Create(originalSprite.texture, originalSprite.rect, pivot,
+                    originalSprite.pixelsPerUnit, 0, SpriteMeshType.FullRect);
+                light[i].sprite = fullRect;
+                _phaseBackgroundSprites[i] = fullRect;
+                // Change only this renderer's instance, preserving the scroller's cached material.
+                var material = light[i].material;
+                var offset = material.mainTextureOffset;
+                var scale = material.mainTextureScale;
+                material.shader = _backgroundBlendShader;
+                material.mainTextureOffset = offset;
+                material.mainTextureScale = scale;
+                material.SetTexture("_PhaseTex", target.sprite.texture);
+                material.SetFloat(PhaseBlend, 0f);
+                _phaseBackgroundMaterials[i] = material;
+                break;
+            }
+        }
+        // Both textures are sampled during phase one, before the actual transformation.
+        // Reuse the same scrolling geometry for phase two; no material creation or activation spike.
+    }
+
+    private IEnumerator BlendPhaseVisuals()
+    {
+        float elapsed = 0f;
+        while (elapsed < PhaseFadeDuration)
+        {
+            float t = Mathf.Clamp01(elapsed / PhaseFadeDuration);
+            float blend = Mathf.SmoothStep(0f, 1f, t);
+            if (_phaseBackgroundMaterials != null)
+                foreach (var material in _phaseBackgroundMaterials)
+                    if (material != null) material.SetFloat(PhaseBlend, blend);
+            elapsed += Time.deltaTime * LocalTime.TimeScale;
+            yield return null;
+        }
+        if (_phaseBackgroundMaterials != null)
+        {
+            foreach (var material in _phaseBackgroundMaterials)
+                if (material != null) material.SetFloat(PhaseBlend, 1f);
+        }
+        else
+        {
+            _lightBackground.SetActive(false);
+            _darkBackground.SetActive(true);
+        }
+    }
+
+    private IEnumerator MoveForPhaseTransition(Vector3 destination, float duration)
+    {
+        Vector3 origin = transform.position;
+        float elapsed = 0f;
+        while (elapsed < duration)
+        {
+            transform.position = Vector3.Lerp(origin, destination,
+                Mathf.SmoothStep(0f, 1f, elapsed / duration));
+            elapsed += Time.deltaTime * LocalTime.TimeScale;
+            yield return null;
+        }
+        transform.position = destination;
+    }
+
+    private void OnDestroy()
+    {
+        if (_phaseBackgroundMaterials == null) return;
+        foreach (var material in _phaseBackgroundMaterials)
+            if (material != null) Destroy(material);
+        foreach (var sprite in _phaseBackgroundSprites)
+            if (sprite != null) Destroy(sprite);
     }
 
     private void SetHellPattern()

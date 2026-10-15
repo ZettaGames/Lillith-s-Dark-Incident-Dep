@@ -19,6 +19,8 @@ public class BossGeneric : MonoBehaviour
     [SerializeField] protected AudioClip _music;
     [SerializeField] protected GameObject _musicPlayer;
     protected AudioSource _audioSource;
+    private Coroutine _damageFlash;
+    private bool _flashPending;
 
     // Move the boss to the given position in the given time
     protected void MoveToDestination(Vector3 position, float time)
@@ -57,13 +59,13 @@ public class BossGeneric : MonoBehaviour
         _currentHealth--;
 
         // Show damage in sprite
-        GetComponent<SpriteRenderer>().color = Color.red;
+        RequestDamageFlash();
         yield return new WaitForSeconds(0.1f);
-        GetComponent<SpriteRenderer>().color = Color.white;
 
         // Check if the boss is dead
         if (_currentHealth <= 0)
         {
+            FinishDamageFlash();
             Death();
         }
 
@@ -75,15 +77,43 @@ public class BossGeneric : MonoBehaviour
         _currentHealth -= 15 + (int)(_currentHealth * 0.05f);
 
         // Show damage in sprite
-        GetComponent<SpriteRenderer>().color = Color.red;
+        RequestDamageFlash();
         yield return new WaitForSeconds(0.1f);
-        GetComponent<SpriteRenderer>().color = Color.white;
 
         // Check if the boss is dead
         if (_currentHealth <= 0)
         {
+            FinishDamageFlash();
             Death();
         }
+    }
+
+    private void RequestDamageFlash()
+    {
+        _flashPending = true;
+        if (_damageFlash == null) _damageFlash = StartCoroutine(FlashDamage());
+    }
+
+    private IEnumerator FlashDamage()
+    {
+        var sprite = GetComponent<SpriteRenderer>();
+        do
+        {
+            _flashPending = false;
+            sprite.color = Color.red;
+            yield return new WaitForSeconds(0.05f);
+            sprite.color = Color.white;
+            yield return new WaitForSeconds(0.05f);
+        } while (_flashPending);
+        _damageFlash = null;
+    }
+
+    private void FinishDamageFlash()
+    {
+        if (_damageFlash != null) StopCoroutine(_damageFlash);
+        _damageFlash = null;
+        _flashPending = false;
+        GetComponent<SpriteRenderer>().color = Color.white;
     }
 
     protected virtual void Death()

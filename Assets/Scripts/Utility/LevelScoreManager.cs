@@ -33,7 +33,7 @@ public class LevelScoreManager : MonoBehaviour
 
     void Start()
     {
-        _score = GameManager.Instance.TotalScore;
+        _score = Mathf.Max(0f, GameManager.Instance.TotalScore);
 
         if (GameManager.Instance.CurrentStars != 0)
         {
@@ -56,7 +56,7 @@ public class LevelScoreManager : MonoBehaviour
 
     public void HitPenalty()
     {
-        _score -= Mathf.Max(_score * 0.05f, 25000);
+        _score = Mathf.Max(0f, _score - Mathf.Max(_score * 0.05f, 25000f));
     }
 
     public void EnemyHitBonus()

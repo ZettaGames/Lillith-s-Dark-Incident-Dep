@@ -19,6 +19,8 @@ public class MenuActionsManager : MonoBehaviour
 
     public void NewGameYes()
 	{
+		if (SceneTransitionManager.Instance.IsLoading) return;
+		GameManager.Instance.ResetRun();
 		StartCoroutine(StartNewGame());
 	}
 	

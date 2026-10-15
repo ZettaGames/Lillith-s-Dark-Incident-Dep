@@ -64,6 +64,8 @@ public class LillithController : MonoBehaviour
     private Rigidbody2D _rigidbody;
 	private PlayerInput _playerInput;
 	private Animator _animator;
+    private Gamepad _rumblingGamepad;
+    private Coroutine _rumbleCoroutine;
 	#endregion
 
 	#region unity_methods
@@ -261,7 +263,11 @@ public class LillithController : MonoBehaviour
         // Smoothly return the player to the initial position
         while (Vector2.Distance(transform.position, startPosition) > 0.1f)
         {
-            transform.position = Vector2.Lerp(transform.position, startPosition, 0.05f);
+            if (LocalTime.TimeScale > 0f)
+            {
+                transform.position = Vector2.Lerp(transform.position, startPosition,
+                    1f - Mathf.Exp(-3f * Time.deltaTime * LocalTime.TimeScale));
+            }
             yield return null;
         }
     }
@@ -269,20 +275,38 @@ public class LillithController : MonoBehaviour
     #region gamepad_shake
     public void ShakeGamepad(float lowFreqIntensity, float highFreqIntensity, float duration)
 	{
-		StartCoroutine(GamepadShake(lowFreqIntensity, highFreqIntensity, duration));
+        StopGamepadShake();
+        if (!isActiveAndEnabled || LocalTime.IsPaused || Gamepad.current == null) return;
+        _rumblingGamepad = Gamepad.current;
+        _rumbleCoroutine = StartCoroutine(GamepadShake(lowFreqIntensity, highFreqIntensity, duration));
 	}
 	
 	private IEnumerator GamepadShake(float lowFreqIntensity, float highFreqIntensity, float duration)
 	{
-		// Check if there is a gamepad connected
-		if (Gamepad.current != null)
-		{
-			// Shake the gamepad for a certain amount of time
-			Gamepad.current.SetMotorSpeeds(lowFreqIntensity, highFreqIntensity);
-			yield return new WaitForSeconds(duration);
-			Gamepad.current.SetMotorSpeeds(0.0f, 0.0f);
-		}
+        _rumblingGamepad.SetMotorSpeeds(lowFreqIntensity, highFreqIntensity);
+        yield return new WaitForSecondsRealtime(Mathf.Max(0f, duration));
+        if (_rumblingGamepad != null && _rumblingGamepad.added)
+            _rumblingGamepad.SetMotorSpeeds(0f, 0f);
+        _rumblingGamepad = null;
+        _rumbleCoroutine = null;
 	}
+
+    public void StopGamepadShake()
+    {
+        if (_rumbleCoroutine != null) StopCoroutine(_rumbleCoroutine);
+        if (_rumblingGamepad != null && _rumblingGamepad.added)
+            _rumblingGamepad.SetMotorSpeeds(0f, 0f);
+        _rumbleCoroutine = null;
+        _rumblingGamepad = null;
+    }
+
+    private void OnDisable() => StopGamepadShake();
+    private void OnDestroy() => StopGamepadShake();
+    private void OnApplicationQuit() => StopGamepadShake();
+    private void OnApplicationFocus(bool focused)
+    {
+        if (!focused) StopGamepadShake();
+    }
 
 	public void ResetCooldowns()
 	{

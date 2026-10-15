@@ -328,7 +328,8 @@ public class SkidLevelManager : MonoBehaviour
         while (elapsedTime < duration)
         {
             _skidText.GetComponent<SpriteRenderer>().color = new Color(1, 1, 1, elapsedTime / duration);
-            _skidSplashArt.transform.position = Vector3.Lerp(_skidSplashArt.transform.position, splashartPosition, elapsedTime / duration);
+            if (!LocalTime.IsPaused)
+                _skidSplashArt.transform.position = Vector3.Lerp(_skidSplashArt.transform.position, splashartPosition, elapsedTime / duration);
             elapsedTime += Time.deltaTime;
             yield return null;
         }

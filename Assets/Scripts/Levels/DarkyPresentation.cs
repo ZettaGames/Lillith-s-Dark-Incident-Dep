@@ -48,7 +48,8 @@ public class DarkyPresentation : MonoBehaviour
         while (elapsedTime < duration)
         {
             _darkyText.GetComponent<SpriteRenderer>().color = new Color(1, 1, 1, elapsedTime / duration);
-            _darkyLightSplashtArt.transform.position = Vector3.Lerp(_darkyLightSplashtArt.transform.position, splashartPosition, elapsedTime / duration);
+            if (!LocalTime.IsPaused)
+                _darkyLightSplashtArt.transform.position = Vector3.Lerp(_darkyLightSplashtArt.transform.position, splashartPosition, elapsedTime / duration);
             elapsedTime += Time.deltaTime * LocalTime.TimeScale;
             yield return null;
         }

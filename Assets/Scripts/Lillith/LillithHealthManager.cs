@@ -1,4 +1,5 @@
 using System.Collections;
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -65,6 +66,9 @@ public class LillithHealthManager : MonoBehaviour
     private Animator _animator;
 	private Rigidbody2D _rigidbody;
 	private LillithController _lillithController;
+    private readonly List<ParticleCollisionEvent> _particleCollisions = new List<ParticleCollisionEvent>();
+    private bool CanTakeDamage => !hasDied && currentStars > 0 &&
+        LocalTime.TimeScale > 0f && gameObject.CompareTag(PLAYER);
 
 	private void Start()
 	{
@@ -122,6 +126,7 @@ public class LillithHealthManager : MonoBehaviour
     #region damaging_methods
     public void TakeDamage()
 	{
+        if (!CanTakeDamage) return;
         // Play a random hit sound
         int random = Random.Range(0, 3);
         switch (random)
@@ -191,9 +196,24 @@ public class LillithHealthManager : MonoBehaviour
 	private void KnockBack(Vector2 hitPoint)
 	{
 		// Move the player from the hit point
-		Vector2 direction = (Vector2.zero - hitPoint).normalized;
-		_rigidbody.velocity = direction * _knockBackForce;
+        KnockBackInDirection(_rigidbody.position - hitPoint);
 	}
+
+    private void KnockBackInDirection(Vector2 direction)
+    {
+        if (direction.sqrMagnitude < 0.0001f) direction = Vector2.down;
+        // Existing prefabs store negative values; strength must not reverse the impact.
+        var strength = new Vector2(Mathf.Abs(_knockBackForce.x), Mathf.Abs(_knockBackForce.y));
+        _rigidbody.velocity = Vector2.Scale(direction.normalized, strength);
+    }
+
+    private void KnockBackFromCollider(Collider2D other)
+    {
+        Vector2 point = other.ClosestPoint(_rigidbody.position);
+        if ((point - _rigidbody.position).sqrMagnitude < 0.0001f)
+            point = other.bounds.center;
+        KnockBack(point);
+    }
 
 	private IEnumerator Death()
 	{
@@ -224,24 +244,28 @@ public class LillithHealthManager : MonoBehaviour
     private void OnCollisionEnter2D(Collision2D collision)
     {
         // Check if the player collided with an enemy
-        if ((collision.collider.CompareTag(ENEMY) || collision.collider.CompareTag(OBSTACLE)) && gameObject.CompareTag(PLAYER))
+        if ((collision.collider.CompareTag(ENEMY) || collision.collider.CompareTag(OBSTACLE)) && CanTakeDamage)
         {
             TakeDamage();
-            KnockBack(collision.collider.transform.position);
+            if (collision.contactCount > 0)
+                KnockBackInDirection(collision.GetContact(0).normal);
+            else
+                KnockBackFromCollider(collision.collider);
         }
     }
 
     private void OnTriggerEnter2D(Collider2D other)
     {
+        if (LocalTime.TimeScale <= 0f || hasDied) return;
         // Check if the player collided with an enemy
-        if ((other.CompareTag(ENEMY) || other.CompareTag(OBSTACLE)) && gameObject.CompareTag(PLAYER))
+        if ((other.CompareTag(ENEMY) || other.CompareTag(OBSTACLE)) && CanTakeDamage)
         {
             // Update the score
             LevelScoreManager.Instance.HitPenalty();
 
             // Apply the damaging effects
             TakeDamage();
-            KnockBack(other.transform.position);
+            KnockBackFromCollider(other);
         }
 
         // Check if the player collided with a score drop
@@ -271,9 +295,16 @@ public class LillithHealthManager : MonoBehaviour
 
     private void OnParticleCollision(GameObject other)
     {
-		if (other.CompareTag(INK) && gameObject.CompareTag(PLAYER))
+        if (!CanTakeDamage) return;
+        var particles = other.GetComponent<ParticleSystem>();
+        int collisionCount = particles != null
+            ? particles.GetCollisionEvents(gameObject, _particleCollisions) : 0;
+
+		if (other.CompareTag(INK))
 		{
-			InkManager.Instance.ShowInkSpot();
+            // Unity batches particle contacts; show one spot for each ink ball.
+            for (int i = 0; i < Mathf.Max(1, collisionCount); i++)
+                InkManager.Instance.ShowInkSpot();
         }
 		else
 		{
@@ -282,24 +313,37 @@ public class LillithHealthManager : MonoBehaviour
 
             // Apply the damaging effects
             TakeDamage();
-			KnockBack(other.transform.position);
+            if (collisionCount > 0)
+            {
+                var impact = _particleCollisions[0];
+                if (impact.velocity.sqrMagnitude > 0.0001f)
+                    KnockBackInDirection(impact.velocity);
+                else
+                    KnockBack(impact.intersection);
+            }
+			else KnockBack(other.transform.position);
 		}
     }
 
     // Do constant damage if the player is inside the collider
     private void OnTriggerStay2D(Collider2D other)
     {
-        if (other.CompareTag(OBSTACLE) && gameObject.CompareTag(PLAYER))
+        if (other.CompareTag(OBSTACLE) && CanTakeDamage)
         {
             TakeDamage();
+            KnockBackFromCollider(other);
         }
     }
 
     private void OnCollisionStay2D(Collision2D collision)
     {
-        if (collision.collider.CompareTag(OBSTACLE) && gameObject.CompareTag(PLAYER))
+        if (collision.collider.CompareTag(OBSTACLE) && CanTakeDamage)
         {
             TakeDamage();
+            if (collision.contactCount > 0)
+                KnockBackInDirection(collision.GetContact(0).normal);
+            else
+                KnockBackFromCollider(collision.collider);
         }
     }
 

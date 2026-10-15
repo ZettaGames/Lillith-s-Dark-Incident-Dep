@@ -6044,7 +6044,7 @@ MonoBehaviour:
   - {fileID: 1434376920}
   - {fileID: 1065603732}
   - {fileID: 1500900472}
-  _timeToShowInk: 10
+  _timeToShowInk: 3
 --- !u!4 &1773113745
 Transform:
   m_ObjectHideFlags: 0

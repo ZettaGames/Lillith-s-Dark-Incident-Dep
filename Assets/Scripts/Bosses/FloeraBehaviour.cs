@@ -77,6 +77,7 @@ public class FloeraBehaviour : BossGeneric
 
     private void Update()
     {
+        if (LocalTime.IsPaused) return;
         _healthBar.fillAmount = (float)_currentHealth / _maxHealth;
 
         _timer += Time.deltaTime * LocalTime.TimeScale;

@@ -24,6 +24,7 @@ public class SceneTransitionManager : MonoBehaviour
 
     // Singleton instance
     public static SceneTransitionManager Instance { get; private set; }
+    public bool IsLoading { get; private set; }
 
     private void Awake()
     {
@@ -42,6 +43,7 @@ public class SceneTransitionManager : MonoBehaviour
     {
         if (IsOnBlackScene())
         {
+            IsLoading = true;
             StartCoroutine(LoadMainMenu());
         }
     }
@@ -49,12 +51,18 @@ public class SceneTransitionManager : MonoBehaviour
     #region Level Loading
     public void LoadLevel(int index)
     {
+        if (IsLoading) return;
+        IsLoading = true;
+        LocalTime.SetPaused(false);
         StartCoroutine(FadeOutMusic());
         StartCoroutine(Load(index));
     }
 
     public void LoadLevel(string name)
     {
+        if (IsLoading) return;
+        IsLoading = true;
+        LocalTime.SetPaused(false);
         StartCoroutine(FadeOutMusic());
         StartCoroutine(Load(name));
     }
@@ -79,6 +87,8 @@ public class SceneTransitionManager : MonoBehaviour
 
         // Allow the scene to be activated
         asyncLoad.allowSceneActivation = true;
+        yield return asyncLoad;
+        IsLoading = false;
     }
 
     private IEnumerator Load(string name)
@@ -101,6 +111,8 @@ public class SceneTransitionManager : MonoBehaviour
 
         // Allow the scene to be activated
         asyncLoad.allowSceneActivation = true;
+        yield return asyncLoad;
+        IsLoading = false;
     }
     #endregion
 

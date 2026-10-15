@@ -198,8 +198,8 @@ MonoBehaviour:
   speed: 1
   _scoreDrop: {fileID: 2241293433198240086, guid: ece2ca09fb95d3a42819fd77099e7dbb, type: 3}
   _starDrop: {fileID: 6866863526327915220, guid: 2c9933b386047264abcf44301b79d792, type: 3}
-  _scoreDropChance: 0.05
-  _starDropChance: 0.0075
+  _scoreDropChance: 0.35
+  _starDropChance: 0.075
   _moveTime: 3
   _stopTime: 1.5
   _stopChance: 0.6

@@ -8020,6 +8020,7 @@ MonoBehaviour:
   _animator: {fileID: 1771069444}
   _lightBackground: {fileID: 1629595368}
   _darkBackground: {fileID: 1690126203}
+  _backgroundBlendShader: {fileID: 4800000, guid: 2a57bfd250cc4a869ddc219d81745e56, type: 3}
 --- !u!50 &1771069442
 Rigidbody2D:
   serializedVersion: 4

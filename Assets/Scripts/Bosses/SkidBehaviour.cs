@@ -87,6 +87,7 @@ public class SkidBehaviour : BossGeneric
 
     private void Update()
     {
+        if (LocalTime.IsPaused) return;
         // Boss control
         _healthBar.fillAmount = (float)_currentHealth / _maxHealth;
         _timer += Time.deltaTime * LocalTime.TimeScale;

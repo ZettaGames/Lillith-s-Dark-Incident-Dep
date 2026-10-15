@@ -362,7 +362,8 @@ public class FloeraLevelManager : MonoBehaviour
         while (elapsedTime < duration)
         {
             _floeraText.GetComponent<SpriteRenderer>().color = new Color(1, 1, 1, elapsedTime / duration);
-            _floeraSplashArt.transform.position = Vector3.Lerp(_floeraSplashArt.transform.position, splashartPosition, elapsedTime / duration);
+            if (!LocalTime.IsPaused)
+                _floeraSplashArt.transform.position = Vector3.Lerp(_floeraSplashArt.transform.position, splashartPosition, elapsedTime / duration);
             elapsedTime += Time.deltaTime;
             yield return null;
         }

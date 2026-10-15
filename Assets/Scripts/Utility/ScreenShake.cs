@@ -33,6 +33,11 @@ public class ScreenShake : MonoBehaviour
 		// Shake the camera for the duration time
 		while (elapsed < duration)
 		{
+            if (LocalTime.IsPaused)
+            {
+                yield return null;
+                continue;
+            }
 			// Calculate the new position of the camera based on the magnitude
 			float x = Random.Range(-1.0f, 1.0f) * magnitude;
 			float y = Random.Range(-1.0f, 1.0f) * magnitude;

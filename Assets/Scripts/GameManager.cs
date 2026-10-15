@@ -15,7 +15,7 @@ public class GameManager : MonoBehaviour
     public float TotalScore
     {
         get => _totalScore;
-        set => _totalScore = value;
+        set => _totalScore = Mathf.Max(0f, value);
     }
 
     public int CurrentStars
@@ -55,17 +55,40 @@ public class GameManager : MonoBehaviour
 
     private void Update()
     {
-#if UNITY_EDITOR
-        if (Input.GetKeyDown(KeyCode.F1))
+        if (Instance != this || SceneTransitionManager.Instance == null ||
+            SceneTransitionManager.Instance.IsLoading)
         {
-            LocalTime.TimeScale = 0.0f;
+            return;
         }
 
-        if (Input.GetKeyDown(KeyCode.F2))
+        if (Input.GetKeyDown(KeyCode.F1))
         {
-            LocalTime.TimeScale = 1.0f;
+            StartLevel("04_FloeraLevel", 1);
         }
-#endif
+        else if (Input.GetKeyDown(KeyCode.F2))
+        {
+            StartLevel("06_SkidLevel", 2);
+        }
+        else if (Input.GetKeyDown(KeyCode.F3))
+        {
+            StartLevel("08_DarkyLevel", 3);
+        }
+    }
+
+    public void ResetRun()
+    {
+        _levelCounter = 1;
+        _totalScore = 0f;
+        // Zero means there is no health carried over from a previous level.
+        _currentStars = 0;
+        LocalTime.TimeScale = 1f;
+    }
+
+    private void StartLevel(string sceneName, int level)
+    {
+        ResetRun();
+        SetCurrentLevel(level);
+        SceneTransitionManager.Instance.LoadLevel(sceneName);
     }
 
     public void SetFrameRate(bool vsync)
